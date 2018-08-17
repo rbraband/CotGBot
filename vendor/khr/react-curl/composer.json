@@ -1,0 +1,21 @@
+{
+    "name": "khr/react-curl",
+    "description": "multi curl driver for reactphp.",
+    "keywords": ["mysql", "php", "multi", "curl"],
+    "license": "None",
+    "require": {
+        "php": ">=5.4.0",
+
+        "react/promise": "~2.0",
+        "react/event-loop": "*",
+        "khr/php-mcurl-client": "3.*"
+    },
+    "require-dev": {
+
+    },
+    "autoload": {
+        "psr-4": {
+            "KHR\\React\\Curl\\": "src"
+        }
+    }
+}

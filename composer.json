@@ -1,0 +1,42 @@
+{
+    "name": "rbraband/cotg-bot",
+    "authors": [
+        {
+            "email": "r.braband@web.de",
+            "name": "Roland Braband"
+        }
+    ],
+    "description": "CotG php bot",
+    "license": "CC-BY-SA-3.0",
+    "repositories": [
+        {
+            "name": "devristo/phpws",
+            "type": "vcs",
+            "url": "https://github.com/Devristo/phpws"
+        }
+    ],
+    "suggest": {
+		"ext-redis": "The php redis extension https://github.com/nicolasff/phpredis/ is required for connecting to redis server"
+	},
+	"require": {
+        "react/socket-client": "^0.4.3",
+        "zendframework/zend-log": "^2.5",
+        "devristo/phpws": "dev-master",
+        "mkraemer/react-pcntl": "2.0.*",
+        "react/promise": "^2.2",
+        "malenki/ansi": "^1.2",
+        "zendframework/zend-mail": "^2.5",
+        "mustangostang/spyc": "dev-master",
+        "clue/buzz-react": "0.4.1",
+        "ukko/phpredis-phpdoc": "*",
+        "react/http": "^0.4.1",
+        "khr/react-curl": "^2.0",
+        "dimabdc/php-fast-simple-html-dom-parser": "dev-master"
+    },
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "CotG\\": "src/CotG/"
+        }
+    }
+}
