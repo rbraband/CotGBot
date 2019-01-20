@@ -39,6 +39,7 @@
         public $ally_shortname;
         public $sister_id;
         public $state = HALT;
+        public $xstate = HALT;
         public $curl;
         public $analyser;
         public $member_list = [];
@@ -256,7 +257,7 @@
                                 $members[$user] = array(
                                     'name' => $user, 
                                     'alliance' => $client->getAllianceName(), 
-                                    'officer' => $this->is_op_user($user, defined('BOT_SISTER_ID')), 
+                                    'officer' => $this->has_rank($user, \ROLES::OFFICER, defined('BOT_SISTER_ID')), 
                                     'state' => $_state);
                             }
                         }
@@ -290,6 +291,7 @@
                         $sender_name = $sender->getUserName();
                         $sender_ally_name = $sender->getAllianceName();
                         if (defined('BOT_ALLY_ID') && !$this->is_ally_user($sender_name, defined('BOT_SISTER_ID'))) {
+                            $this->log("Drop unauthorized client: {$sender_name}@" . $sender->getId(), Log\Logger::DEBUG);
                             $sender->close();
                             _destroy($sender);
                         } else {
@@ -312,7 +314,8 @@
                                         case 'INCOMINGS1H':
                                         case 'OUTGOINGS':
                                         case 'OUTGOINGS1H':
-                                            if (!defined('BOT_SISTER_ID') || !$this->is_op_user($sender_name, defined('BOT_SISTER_ID'))) {
+                                            if (!defined('BOT_SISTER_ID') || !$this->has_rank($sender_name, \ROLES::OFFICER, defined('BOT_SISTER_ID'))) {
+                                                $this->log("Drop unauthorized client: {$sender_name}@" . $sender->getId(), Log\Logger::DEBUG);
                                                 $sender->close();
                                                 _destroy($sender);
                                             } else {
@@ -440,7 +443,8 @@
                                     break;
                                 //cross offi chat msg
                                 case 10:
-                                    if (!defined('BOT_ALLY_ID') || !$this->is_op_user($sender_name, defined('BOT_SISTER_ID'))) {
+                                    if (!defined('BOT_ALLY_ID') || !$this->has_rank($sender_name, \ROLES::OFFICER, defined('BOT_SISTER_ID'))) {
+                                        $this->log("Drop unauthorized client: {$sender_name}@" . $sender->getId(), Log\Logger::DEBUG);
                                         $sender->close();
                                         _destroy($sender);
                                     } else {
@@ -452,7 +456,7 @@
                                                 $alliance_name = $client->getAllianceName();
                                                 if ($alliance_name !== $message->d) { // not same alliance
                                                     $user = $client->getUserName();
-                                                    if (defined('BOT_ALLY_ID') && $this->is_op_user($user, defined('BOT_SISTER_ID'))) {
+                                                    if (defined('BOT_ALLY_ID') && $this->has_rank($user, \ROLES::OFFICER, defined('BOT_SISTER_ID'))) {
                                                         $client->sendString(Json\Json::Encode($message));
                                                     }
                                                 }
@@ -577,7 +581,7 @@
                 $cross_timeout = $this->loop->addPeriodicTimer(TIMEOUT, function() {
                     
                     $this->log("Cross timeout!", Log\Logger::CRIT);
-                    //$this->stop('timeout');
+                                             
                 });
                 $this->cross = new \Devristo\Phpws\Client\WebSocket(BOT_CROSS, $this->loop, $this->logger, ['headers' => array(
                     'Accept-Encoding' => 'gzip, deflate',
@@ -606,6 +610,7 @@
                         'a' => 0,
                         'b' => $this->cross_key
                     );
+                    $this->xstate = CONNECTING;
                     $this->cross->send(Json\Json::Encode($auth));
                     $this->log("Cross login with creds: " . $this->cross_key, Log\Logger::NOTICE);
                     // kill the timeout watchdog
@@ -618,7 +623,7 @@
                     $data = $message->getData();
                     if (!empty($data)) $json = Json\Json::Decode($data, true); // second parameter to true toAssoc 
                     
-                    // need PING / PONG ?
+                    $this->xstate = RUNNING;
                     
                     _destroy($message, $data, $json);
                 });
@@ -626,6 +631,7 @@
                 $this->cross->on("close", function () use($cross_timeout) {
                     $this->log("Cross closed!", Log\Logger::CRIT);
                     $this->log("Cross state: RECONNECTING", Log\Logger::NOTICE);
+                    $this->xstate = RECONNECTING;
                     //\Clue\React\Block\sleep(1.0, $this->loop); // not working!?
                     $this->is_cross_connected = false;
                     $this->cross->open();
@@ -984,18 +990,20 @@
                                                                             $this->bot_user_id = $json->{'pid'};
                                                                             if ($this->debug) $this->log("Found bot id: " . $this->bot_user_id, Log\Logger::DEBUG);
                                                                             if (defined('BOT_ALLY_ID')) {
-                                                                                $this->ally_id = $this->get_bot_alliance_id();//BOT_ALLY_ID;//$json->{'paid'};
-                                                                                if ($this->debug) $this->log("Found bot ally_id: " . $this->ally_id, Log\Logger::DEBUG);
-                                                                                $this->ally_name = BOT_ALLY_NAME;//$json->{'planame'};
+                                                                                $this->ally_name = $json->{'planame'};
+                                                                                                                                                                        
+                                                                                                                                      
                                                                                 if ($this->debug) $this->log("Found bot ally_name: " . $this->ally_name, Log\Logger::DEBUG);
-                                                                            }
-                                                                            if (defined('BOT_SISTER_ID')) {
-                                                                                $this->sister_id = BOT_SISTER_ID;
-                                                                                if ($this->debug) $this->log("Found bot sister_ids: " . $this->sister_id, Log\Logger::DEBUG);
+                                                                                $this->ally_id = $this->get_bot_alliance_id();
+                                                                                if ($this->debug) $this->log("Found bot ally_id: " . $this->ally_id, Log\Logger::DEBUG);
+                                                                                if (defined('BOT_SISTER_ID')) {
+                                                                                    $this->sister_id = BOT_SISTER_ID;
+                                                                                    if ($this->debug) $this->log("Found bot sister_ids: " . $this->sister_id, Log\Logger::DEBUG);
+                                                                                }
                                                                             }
                                                                             $this->bot_last_city = $json->{'lcit'};
                                                                             if ($this->debug) $this->log("Found bot last_city: " . $this->bot_last_city, Log\Logger::DEBUG);
-                                                                            //$this->ally_shortname = BOT_ALLIANCE_SHORT = $json->{'pn'};                                                            
+                                                            
                                                                             $this->start();
                                                                         } else {
                                                                             $this->log("Invalid bot data!", Log\Logger::ERR);
@@ -1009,20 +1017,22 @@
                                                                         $this->bot_user_id = BOT_USER_ID;
                                                                         if ($this->debug) $this->log("Set bot id: " . $this->bot_user_id, Log\Logger::DEBUG);
                                                                         if (defined('BOT_ALLY_ID')) {
-                                                                            $this->ally_id = $this->get_bot_alliance_id();//BOT_ALLY_ID;//$json->{'paid'};
-                                                                            if ($this->debug) $this->log("Set bot ally_id: " . $this->ally_id, Log\Logger::DEBUG);
+                                                                                                                                                          
+                                                                                                                                                                  
                                                                             $this->ally_name = BOT_ALLY_NAME;
                                                                             if ($this->debug) $this->log("Set bot ally_name: " . $this->ally_name, Log\Logger::DEBUG);
-                                                                        }
-                                                                        if (defined('BOT_SISTER_ID')) {
-                                                                            $this->sister_id = BOT_SISTER_ID;
-                                                                            if ($this->debug) $this->log("Set bot sister_ids: " . $this->sister_id, Log\Logger::DEBUG);
+                                                                            $this->ally_id = $this->get_bot_alliance_id();//BOT_ALLY_ID;//$json->{'paid'};
+                                                                            if ($this->debug) $this->log("Set bot ally_id: " . $this->ally_id, Log\Logger::DEBUG);
+                                                                            if (defined('BOT_SISTER_ID')) {
+                                                                                $this->sister_id = BOT_SISTER_ID;
+                                                                                if ($this->debug) $this->log("Set bot sister_ids: " . $this->sister_id, Log\Logger::DEBUG);
+                                                                            }
                                                                         }
                                                                         $this->bot_last_city = BOT_LAST_CID;
                                                                         if ($this->debug) $this->log("Set bot last_city: " . $this->bot_last_city, Log\Logger::DEBUG);
                                                                        
                                                                         $this->start();
-                                                                        //exit;
+                                                                               
                                                                     }
                                                                     _destroy($json, $data, $result);
                                                                 },
@@ -1910,7 +1920,7 @@
                             $alliance_name = $client->getAllianceName();
                             if ($alliance_name !== $message['d']) { // not same alliance
                                 $user = $client->getUserName();
-                                if (defined('BOT_ALLY_ID') && $this->is_op_user($user, defined('BOT_SISTER_ID'))) {
+                                if (defined('BOT_ALLY_ID') && $this->has_rank($user, \ROLES::OFFICER, defined('BOT_SISTER_ID'))) {
                                     $this->log("Cross offimsg to {$user}: " . $message['b'], Log\Logger::DEBUG);
                                     $client->sendString(Json\Json::Encode($message));
                                 }
@@ -1992,6 +2002,7 @@
         
         public function get_bot_alliance_id() {
             //return $this->ally_id;
+            //return BOT_ALLY_ID;
             return $this->get_alliance_id($this->ally_name);
         }
         
@@ -2045,7 +2056,7 @@
             if (empty($user)||!$redis->status()) return false;
             if($uid = $redis->hGet('aliase', mb_strtoupper($user))) {
                 return $uid;
-                } else {
+            } else {
                 $uid = $redis->incr('primary:users');
                 $redis->hMSet("aliase", array(
                     mb_strtoupper($user) => $uid
@@ -2169,6 +2180,17 @@
             else return $user;
         }
         
+        public function get_random_member($aid) {
+            global $redis;
+            
+            if (empty($aid)||!$redis->status()) return false;
+            else if ($redis->status()) {
+                $alias = $redis->sRandMember("alliance:{$aid}:members");
+            } 
+            if ($alias) return $alias;
+            else return $user;
+        }
+        
         public function get_nick($user) {
             global $redis;
             
@@ -2215,6 +2237,18 @@
                 else return ($user == $this->owner) ? true : false;
             }
             else return ($user == $this->owner) ? true : false;
+        }
+        
+        public function has_rank($user, $needle, $check_sister = false) {
+            global $redis;
+            
+            if (empty($user)) return false;           
+            else if ($redis->status() && defined('BOT_ALLY_ID')) {
+                $uid = $this->get_user_id($user);
+                $rank = $redis->hGet("user:{$uid}:data", 'alliance_rank_id');
+                if ($rank && $rank <= $needle && $this->is_ally_user($user, $check_sister)) return true;
+            }
+            return false;
         }
         
         public function is_owner($user) {
@@ -2288,11 +2322,11 @@
         }
         
         public function get_encrypted($hash, $key) {
-            /*$crypt_js = file_get_contents(PERM_DATA . 'crypt.js');
-            $v8 = new \V8Js();
-            $v8->hash = $hash;
-            $v8->key = $key; // key by CotG
-            return $v8->executeString($crypt_js, 'V8Js::crypt.js');*/
+                                                                    
+                              
+                              
+                                           
+                                                                     
 
             return \AesCtr::encrypt($hash, $key, 256);
         }
