@@ -128,7 +128,7 @@
                     $this->get_alliance_mil_multi($json->{'20'}, $debug);
                 }
                 break;
-                case 'ALLIANCE|SHRINE':
+                case 'ALLIANCE|SHRINES':
                 $count_data = count((array)$json->{'14'});
 
                 if ($count_data > 0) {
@@ -179,7 +179,7 @@
                     $this->get_continent_alliance_mil_multi($continent, $json->{'20'}, $debug);
                 }
                 break;
-                case (preg_match('/CONTINENT_(\w{2})\|ALLIANCE\|SHRINE/', $type, $match) ? true : false):
+                case (preg_match('/CONTINENT_(\w{2})\|ALLIANCE\|SHRINES/', $type, $match) ? true : false):
                 $continent = $match[1];
                 $count_data = count((array)$json->{'14'});
                 
